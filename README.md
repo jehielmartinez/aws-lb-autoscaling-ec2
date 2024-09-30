@@ -26,6 +26,9 @@ This Pulumi program creates a basic AWS infrastructure including:
     chmod 400 ~/.ssh/my-keypair.pem
     ```
 
+    or [create a key pair using the AWS Console.](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/create-key-pairs.html)
+    keep the name of the key pair as `my-keypair` or replace it with your key name in the configuration.
+
 ## Configuration
 
 This Pulumi program uses Pulumi configuration settings to define various parameters. Set the following values before deploying:
@@ -36,13 +39,15 @@ pulumi config set appName my-app                         # Application name
 pulumi config set billingId 123456                       # Billing ID tag
 pulumi config set bucketName my-app-bucket-123456        # S3 bucket name
 pulumi config set instanceType t2.micro                  # EC2 instance type 
-pulumi config set sshKeyPairName my-keypair              # SSH key pair name (replace with your key)
-pulumi config set domainName example.com                 # Domain name for HTTPS
+pulumi config set sshKeyPairName my-keypair              # SSH key pair name (replace with your key name)
 pulumi config set asgMinSize 1                           # Min instances in the Auto Scaling Group
 pulumi config set asgMaxSize 5                           # Max instances in the Auto Scaling Group
 pulumi config set asgDesiredCapacity 2                   # Desired number of instances
 pulumi config set cpuHighThreshold 80                    # CPU threshold for scaling out
 pulumi config set cpuLowThreshold 20                     # CPU threshold for scaling in
+pulumi config set httpsEnabled false                     # Enable HTTPS
+pulumi config set domainName example.com                 # Domain name for HTTPS
+pulumi config set myIp 192.168.1.1                       # Your IP address for SSH access
 ```
 
 ## Deployment
@@ -99,28 +104,6 @@ The Auto Scaling Group will automatically add instances when CPU utilization exc
 
 - `cpuHighThreshold`: Set the CPU usage to trigger a scale-out action.
 - `cpuLowThreshold`: Set the CPU usage to trigger a scale-in action.
-
-## Optional: Enabling HTTPS
-
-You can configure your Load Balancer to use HTTPS by enabling the commented section in the Pulumi program. It provisions an ACM certificate and sets up Route 53 DNS records to serve traffic over HTTPS.
-
-### Steps for enabling HTTPS
-
-1. Uncomment the HTTPS CONFIGURATION section in the Pulumi program.
-2. Configure a domain name with Pulumi:
-
-    ```bash
-    pulumi config set domainName your-domain.com
-    ```
-
-3. Ensure your domain is managed in Route 53 or update your DNS settings accordingly.
-4. Deploy HTTPS:
-
-  ```bash
-  pulumi up
-  ```
-
-  Once deployed, you will have a secure Load Balancer that serves traffic over HTTPS.
 
 ## Cleanup
 

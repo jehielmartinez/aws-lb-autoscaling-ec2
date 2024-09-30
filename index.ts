@@ -12,12 +12,14 @@ const billingId = config.get("billingId") || "123456";
 const bucketName = config.get("bucketName") || `${appName}-bucket-${billingId}`;
 const instanceType = config.get("instanceType") || "t2.micro";
 const sshKeyPairName = config.get("sshKeyPairName") || "my-keypair";
-const domainName = config.get("domainName") || "example.com";
+const domainName = config.get("domainName");
 const asgMinSize = config.getNumber("asgMinSize") || 1;
 const asgMaxSize = config.getNumber("asgMaxSize") || 5;
 const asgDesiredCapacity = config.getNumber("asgDesiredCapacity") || 2;
 const cpuHighThreshold = config.getNumber("cpuHighThreshold") || 80;
 const cpuLowThreshold = config.getNumber("cpuLowThreshold") || 20;
+const myIP = config.get("myIP") || "192.168.1.1";
+const httpsEnabled = config.getBoolean("httpsEnabled") || false;
 
 // Virtual Private Cloud
 const vpc = new awsx.ec2.Vpc(`${appName}-vpc`, {
@@ -25,7 +27,7 @@ const vpc = new awsx.ec2.Vpc(`${appName}-vpc`, {
   numberOfAvailabilityZones: 2,
   tags: {
     Name: `${appName}-vpc`,
-    BillingId: billingId 
+    BillingId: billingId
   },
 });
 
@@ -36,12 +38,12 @@ const bucket = new aws.s3.Bucket(`${appName}-bucket`, {
 
 // IAM role and policy for EC2 instances to access the S3 bucket
 const role = new aws.iam.Role(`${appName}-instances-role`, {
-    assumeRolePolicy: aws.iam.assumeRolePolicyForPrincipal({ Service: "ec2.amazonaws.com" }),
+  assumeRolePolicy: aws.iam.assumeRolePolicyForPrincipal({ Service: "ec2.amazonaws.com" }),
 });
 
 new aws.iam.RolePolicy(`${appName}-bucket-access-policy`, {
-    role: role.id,
-    policy: pulumi.interpolate`{
+  role: role.id,
+  policy: pulumi.interpolate`{
         "Version": "2012-10-17",
         "Statement": [
             {
@@ -63,7 +65,7 @@ new aws.iam.RolePolicy(`${appName}-bucket-access-policy`, {
 
 // IAM instance profile
 const instanceIAMProfile = new aws.iam.InstanceProfile(`${appName}-instance-iam-profile`, {
-    role: role.name,
+  role: role.name,
 });
 
 // Security Group for the Load Balancer
@@ -72,6 +74,7 @@ const lbSecurityGroup = new aws.ec2.SecurityGroup(`${appName}-lb-sg`, {
   ingress: [
     { protocol: "tcp", fromPort: 80, toPort: 80, cidrBlocks: ["0.0.0.0/0"] },
     { protocol: "tcp", fromPort: 443, toPort: 443, cidrBlocks: ["0.0.0.0/0"] },
+    { protocol: "tcp", fromPort: 22, toPort: 22, cidrBlocks: [`${myIP}/32`] },
   ],
   egress: [
     { protocol: "-1", fromPort: 0, toPort: 0, cidrBlocks: ["0.0.0.0/0"] },
@@ -88,7 +91,7 @@ const instanceSecurityGroup = new aws.ec2.SecurityGroup(`${appName}-instance-sg`
   description: "Allow all inbound traffic from the VPC",
   ingress: [{ protocol: "-1", fromPort: 0, toPort: 0, cidrBlocks: [vpc.vpc.cidrBlock] }],
   egress: [{ protocol: "-1", fromPort: 0, toPort: 0, cidrBlocks: ["0.0.0.0/0"] }],
-  tags: { 
+  tags: {
     Name: `${appName}-instance-sg`,
     BillingId: billingId
   },
@@ -137,7 +140,7 @@ const userData = Buffer.from(`#!/bin/bash
 const launchTemplate = new aws.ec2.LaunchTemplate(`${appName}-instance-launch-template`, {
   imageId: aws.ec2.getAmi({
     filters: [
-        { name: "name", values: ["amzn2-ami-hvm-*-x86_64-gp2"] },
+      { name: "name", values: ["amzn2-ami-hvm-*-x86_64-gp2"] },
     ],
     owners: ["amazon"],
     mostRecent: true,
@@ -208,57 +211,59 @@ new aws.cloudwatch.MetricAlarm(`${appName}-cpu-low-alarm`, {
 
 // HTTPS CONFIGURATION (OPTIONAL) *********************************************************************************
 
-// // Certificate
-// const certificate = new aws.acm.Certificate(`${appName}-certificate`, {
-//   domainName: domainName,
-//   validationMethod: "DNS",
-// });
+if (httpsEnabled && domainName) {
+  // Certificate
+  const certificate = new aws.acm.Certificate(`${appName}-certificate`, {
+    domainName: domainName,
+    validationMethod: "DNS",
+  });
 
-// // Route 53 Record
-// const zone = new aws.route53.Zone(`${appName}-dns-zone`, {
-//   name: domainName,
-// });
+  // Route 53 Record
+  const zone = new aws.route53.Zone(`${appName}-dns-zone`, {
+    name: domainName,
+  });
 
-// const validationRecord = new aws.route53.Record(`${appName}-validation-record`, {
-//   name: certificate.domainValidationOptions[0].resourceRecordName,
-//   zoneId: zone.id,
-//   type: certificate.domainValidationOptions[0].resourceRecordType,
-//   records: [certificate.domainValidationOptions[0].resourceRecordValue],
-//   ttl: 60,
-// });
+  const validationRecord = new aws.route53.Record(`${appName}-validation-record`, {
+    name: certificate.domainValidationOptions[0].resourceRecordName,
+    zoneId: zone.id,
+    type: certificate.domainValidationOptions[0].resourceRecordType,
+    records: [certificate.domainValidationOptions[0].resourceRecordValue],
+    ttl: 60,
+  });
 
-// // Validate the ACM certificate
-// const validation = new aws.acm.CertificateValidation(`${appName}-validation`, {
-//   certificateArn: certificate.arn,
-//   validationRecordFqdns: [validationRecord.fqdn],
-// });
+  // Validate the ACM certificate
+  const validation = new aws.acm.CertificateValidation(`${appName}-validation`, {
+    certificateArn: certificate.arn,
+    validationRecordFqdns: [validationRecord.fqdn],
+  });
 
-// // Route 53 Record for the Load Balancer
-// new aws.route53.Record(`${appName}-lb-record`, {
-//   name: domainName,
-//   zoneId: zone.id,
-//   type: "A",
-//   aliases: [
-//     {
-//       name: lb.dnsName,
-//       zoneId: lb.zoneId,
-//       evaluateTargetHealth: true,
-//     },
-//   ],
-// });
+  // Route 53 Record for the Load Balancer
+  new aws.route53.Record(`${appName}-lb-record`, {
+    name: domainName,
+    zoneId: zone.id,
+    type: "A",
+    aliases: [
+      {
+        name: lb.dnsName,
+        zoneId: lb.zoneId,
+        evaluateTargetHealth: true,
+      },
+    ],
+  });
 
-// // HTTPS Listener
-// new aws.lb.Listener(`${appName}-https-listener`, {
-//   loadBalancerArn: lb.arn,
-//   port: 443,
-//   certificateArn: certificate.arn,
-//   defaultActions: [
-//     {
-//       type: "forward",
-//       targetGroupArn: tg.arn,
-//     },
-//   ],
-// }, { dependsOn: validation });
+  // HTTPS Listener
+  new aws.lb.Listener(`${appName}-https-listener`, {
+    loadBalancerArn: lb.arn,
+    port: 443,
+    certificateArn: certificate.arn,
+    defaultActions: [
+      {
+        type: "forward",
+        targetGroupArn: tg.arn,
+      },
+    ],
+  }, { dependsOn: validation });
+}
 
 // ********************************************************************************************************************
 
