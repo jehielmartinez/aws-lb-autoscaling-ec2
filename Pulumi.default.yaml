@@ -1,2 +1,12 @@
 config:
+  aws-lb-autoscaling-ec2:appName: acme-app
+  aws-lb-autoscaling-ec2:billingId: ec2-asg-training
+  aws-lb-autoscaling-ec2:cidrBlock: 10.0.0.0/16
+  aws-lb-autoscaling-ec2:instanceType: t2.micro
+  aws-lb-autoscaling-ec2:bucketName: acme-app-bucket-123
+  aws-lb-autoscaling-ec2:sshKeyPairName: acme-app-keypair
+  aws-lb-autoscaling-ec2:domainName: acme-app.com
+  aws-lb-autoscaling-ec2:asgMinSize: 1
+  aws-lb-autoscaling-ec2:asgMaxSize: 5
+  aws-lb-autoscaling-ec2:asgDesiredCapacity: 2
   aws:region: us-east-1
