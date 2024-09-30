@@ -1,0 +1,10 @@
+name: aws-lb-autoscaling-ec2
+runtime:
+  name: nodejs
+  options:
+    packagemanager: yarn
+description: A load balanced autoscaling ec2 based deployment
+config:
+  pulumi:tags:
+    value:
+      pulumi:template: aws-typescript
