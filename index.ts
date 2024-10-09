@@ -74,7 +74,6 @@ const lbSecurityGroup = new aws.ec2.SecurityGroup(`${appName}-lb-sg`, {
   ingress: [
     { protocol: "tcp", fromPort: 80, toPort: 80, cidrBlocks: ["0.0.0.0/0"] },
     { protocol: "tcp", fromPort: 443, toPort: 443, cidrBlocks: ["0.0.0.0/0"] },
-    { protocol: "tcp", fromPort: 22, toPort: 22, cidrBlocks: [`${myIP}/32`] },
   ],
   egress: [
     { protocol: "-1", fromPort: 0, toPort: 0, cidrBlocks: ["0.0.0.0/0"] },
@@ -89,7 +88,10 @@ const lbSecurityGroup = new aws.ec2.SecurityGroup(`${appName}-lb-sg`, {
 const instanceSecurityGroup = new aws.ec2.SecurityGroup(`${appName}-instance-sg`, {
   vpcId: vpc.vpcId,
   description: "Allow all inbound traffic from the VPC",
-  ingress: [{ protocol: "-1", fromPort: 0, toPort: 0, cidrBlocks: [vpc.vpc.cidrBlock] }],
+  ingress: [
+    { protocol: "-1", fromPort: 0, toPort: 0, cidrBlocks: [vpc.vpc.cidrBlock] },
+    { protocol: "tcp", fromPort: 22, toPort: 22, cidrBlocks: [`${myIP}/32`] }
+  ],
   egress: [{ protocol: "-1", fromPort: 0, toPort: 0, cidrBlocks: ["0.0.0.0/0"] }],
   tags: {
     Name: `${appName}-instance-sg`,
