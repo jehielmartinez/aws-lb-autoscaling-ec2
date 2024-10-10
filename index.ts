@@ -11,7 +11,7 @@ const cidrBlock = config.get("cidrBlock") || "10.0.0.0/16";
 const billingId = config.get("billingId") || "123456";
 const bucketName = config.get("bucketName") || `${appName}-bucket-${billingId}`;
 const instanceType = config.get("instanceType") || "t2.micro";
-const sshKeyPairName = config.get("sshKeyPairName") || "my-keypair";
+const sshKeyPairName = config.get("sshKeyPairName"); // Manually create a key pair in the AWS Console
 const domainName = config.get("domainName");
 const asgMinSize = config.getNumber("asgMinSize") || 1;
 const asgMaxSize = config.getNumber("asgMaxSize") || 5;
@@ -34,11 +34,19 @@ const vpc = new awsx.ec2.Vpc(`${appName}-vpc`, {
 // S3 bucket
 const bucket = new aws.s3.Bucket(`${appName}-bucket`, {
   bucket: bucketName,
+  tags: {
+    Name: `${appName}-bucket`,
+    BillingId: billingId
+  }
 });
 
 // IAM role and policy for EC2 instances to access the S3 bucket
 const role = new aws.iam.Role(`${appName}-instances-role`, {
   assumeRolePolicy: aws.iam.assumeRolePolicyForPrincipal({ Service: "ec2.amazonaws.com" }),
+  tags: {
+    Name: `${appName}-instances-role`,
+    BillingId: billingId
+  }
 });
 
 new aws.iam.RolePolicy(`${appName}-bucket-access-policy`, {
@@ -66,6 +74,10 @@ new aws.iam.RolePolicy(`${appName}-bucket-access-policy`, {
 // IAM instance profile
 const instanceIAMProfile = new aws.iam.InstanceProfile(`${appName}-instance-iam-profile`, {
   role: role.name,
+  tags: {
+    Name: `${appName}-instance-iam-profile`,
+    BillingId: billingId
+  }
 });
 
 // Security Group for the Load Balancer
@@ -196,6 +208,10 @@ new aws.cloudwatch.MetricAlarm(`${appName}-cpu-high-alarm`, {
   dimensions: { AutoScalingGroupName: asg.name },
   alarmDescription: `Triggers a scale-out when CPU > ${cpuHighThreshold}%`,
   alarmActions: [scaleUpPolicy.arn],
+  tags: {
+    Name: `${appName}-cpu-high-alarm`,
+    BillingId: billingId
+  }
 });
 
 new aws.cloudwatch.MetricAlarm(`${appName}-cpu-low-alarm`, {
@@ -209,6 +225,10 @@ new aws.cloudwatch.MetricAlarm(`${appName}-cpu-low-alarm`, {
   dimensions: { AutoScalingGroupName: asg.name },
   alarmDescription: `Triggers a scale-in when CPU < ${cpuLowThreshold}%`,
   alarmActions: [scaleDownPolicy.arn],
+  tags: {
+    Name: `${appName}-cpu-low-alarm`,
+    BillingId: billingId
+  }
 });
 
 // HTTPS CONFIGURATION (OPTIONAL) *********************************************************************************
@@ -218,11 +238,19 @@ if (httpsEnabled && domainName) {
   const certificate = new aws.acm.Certificate(`${appName}-certificate`, {
     domainName: domainName,
     validationMethod: "DNS",
+    tags: {
+      Name: `${appName}-certificate`,
+      BillingId: billingId
+    },
   });
 
   // Route 53 Record
   const zone = new aws.route53.Zone(`${appName}-dns-zone`, {
     name: domainName,
+    tags: {
+      Name: `${appName}-dns-zone`,
+      BillingId: billingId
+    }
   });
 
   const validationRecord = new aws.route53.Record(`${appName}-validation-record`, {
@@ -264,6 +292,10 @@ if (httpsEnabled && domainName) {
         targetGroupArn: tg.arn,
       },
     ],
+    tags: {
+      Name: `${appName}-https-listener`,
+      BillingId: billingId
+    }
   }, { dependsOn: validation });
 }
 
